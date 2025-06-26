@@ -186,8 +186,6 @@ lambda-deployment.zip
 # AWS Credentials (local development)
 .aws/credentials
 .aws/config
-credentials
-config
 
 # Local test events and data
 events/
