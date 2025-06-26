@@ -28,7 +28,12 @@ import com.bokkurin.trackery.config.AppConstants;
 public class ImageProcessService {
 	private static final Logger logger = LoggerFactory.getLogger(ImageProcessService.class);
 
-	//WebP로 변환
+	/**
+	 * 원본 이미지를 WebP로 변환하는 메서드
+	 * @param imageBytes 원본 이미지 바이트
+	 * @return 변환된 이미지 바이트
+	 * @throws IOException 이미지를 불러오지 못했거나 변환에 실패했을 때 발생하는 예외
+	 */
 	public byte[] convertToWebP(byte[] imageBytes) throws IOException {
 		logger.info("WebP 변환 시작");
 
@@ -37,7 +42,13 @@ public class ImageProcessService {
 		return convertBufferedImageToWebP(originalImage, "원본");
 	}
 
-	//썸네일 생성 (300x300급)
+	/**
+	 * 원본 이미지를 썸네일용 작은 이미지로 변환하는 메서드
+	 * 길이, 높이 중 짧은 부분을 300px로 잡고 비율을 맞춰서 리사이징합니다.
+	 * @param imageBytes 원본 이미지 바이트 배열
+	 * @return 변환된 이미지 바이트 배열
+	 * @throws IOException 이미지를 불러오지 못했거나 변환에 실패했을 때 발생하는 예외
+	 */
 	public byte[] createThumbnail(byte[] imageBytes) throws IOException {
 		logger.info("썸네일 생성 시작");
 
@@ -69,6 +80,12 @@ public class ImageProcessService {
 		return convertBufferedImageToWebP(thumbnailImage, "썸네일");
 	}
 
+	/**
+	 * 원본 이미지 바이트를 불러오는 메서드
+	 * @param imageBytes 원본 이미지 바이트 배열
+	 * @return 생성된 BufferedImage 객체
+	 * @throws IOException 지원하지 않는 이미지 형식이거나 데이터가 손상되었을 경우 발생합니다.
+	 */
 	private BufferedImage getOriginalImage(byte[] imageBytes) throws IOException {
 		BufferedImage originalImage = ImageIO.read(new ByteArrayInputStream(imageBytes));
 		if (originalImage == null) {
@@ -78,6 +95,13 @@ public class ImageProcessService {
 		return originalImage;
 	}
 
+	/**
+	 * BufferedImage를 WebP 형식의 바이트 배열로 변환하는 메서드
+	 * @param image      변환할 BufferedImage 객체
+	 * @param logContext 로깅 시 사용할 컨텍스트 문자열 (예: "원본", "썸네일")
+	 * @return WebP로 변환된 이미지의 바이트 배열
+	 * @throws IOException 이미지 변환에 실패했을 경우 발생합니다.
+	 */
 	private byte[] convertBufferedImageToWebP(BufferedImage image, String logContext) throws IOException {
 		ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 		boolean result = ImageIO.write(image, AppConstants.OUTPUT_FORMAT, outputStream);
