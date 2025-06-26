@@ -162,4 +162,52 @@ buildNumber.properties
 
 # End of https://www.toptal.com/developers/gitignore/api/intellij,maven,java
 
+# ===========================================
+# AWS Lambda & SAM Specific
+# ===========================================
+
+# Environment variables
 .env
+.env.local
+.env.development
+.env.production
+
+# AWS SAM
+.aws-sam/
+samconfig.toml
+sam-output.yaml
+
+# AWS Lambda deployment packages
+*.zip
+function.zip
+deployment-package.zip
+lambda-deployment.zip
+
+# AWS Credentials (local development)
+.aws/credentials
+.aws/config
+credentials
+config
+
+# Local test events and data
+events/
+test-events/
+event.json
+test-data/
+
+# CloudFormation templates (generated)
+packaged-template.yaml
+template-output.yaml
+cfn-output.yaml
+
+# Lambda layer artifacts
+layers/
+layer.zip
+
+# Local Lambda runtime
+.lambda/
+lambda-local/
+
+# AWS CDK (if used later)
+cdk.out/
+*.d.ts
