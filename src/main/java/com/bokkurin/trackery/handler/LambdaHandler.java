@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.bokkurin.trackery.config.AwsConfiguration;
+import com.bokkurin.trackery.service.ImageProcessService;
 import com.bokkurin.trackery.service.S3ActionService;
 
 import software.amazon.awssdk.services.s3.S3Client;
@@ -28,10 +29,12 @@ public class LambdaHandler implements RequestHandler<Map<String, Object>, String
 	private static final Logger logger = LoggerFactory.getLogger(LambdaHandler.class);
 
 	private final S3ActionService s3ActionService;
+	private final ImageProcessService imageProcessService;
 
 	public LambdaHandler() {
 		S3Client s3Client = AwsConfiguration.getS3Client();
 		this.s3ActionService = new S3ActionService(s3Client);
+		this.imageProcessService = new ImageProcessService();
 	}
 
 	@Override
@@ -40,11 +43,11 @@ public class LambdaHandler implements RequestHandler<Map<String, Object>, String
 
 		try {
 			@SuppressWarnings("unchecked")
-			List<Map<String, Object>> records = (List<Map<String, Object>>)input.get("Records");
+			List<Map<String, Object>> notificationRecords = (List<Map<String, Object>>)input.get("Records");
 
-			for (Map<String, Object> record : records) {
+			for (Map<String, Object> notificationRecord : notificationRecords) {
 				@SuppressWarnings("unchecked")
-				Map<String, Object> s3 = (Map<String, Object>)record.get("s3");
+				Map<String, Object> s3 = (Map<String, Object>)notificationRecord.get("s3");
 
 				@SuppressWarnings("unchecked")
 				Map<String, Object> bucket = (Map<String, Object>)s3.get("bucket");
@@ -58,6 +61,15 @@ public class LambdaHandler implements RequestHandler<Map<String, Object>, String
 
 				byte[] imageBytes = s3ActionService.downloadImage(bucketName, objectKey);
 				logger.info("다운로드 성공 - 파일 크기: {} bytes", imageBytes.length);
+
+				//이미지 처리 로직
+				byte[] convertedWebPBytes = imageProcessService.convertToWebP(imageBytes);
+				byte[] thumbnailBytes = imageProcessService.createThumbnail(convertedWebPBytes);
+
+				//B 버킷에 업로드
+				s3ActionService.uploadOriginalWebP(objectKey, convertedWebPBytes);
+				s3ActionService.uploadThumbnail(objectKey, thumbnailBytes);
+				logger.info("이미지 업로드 완료");
 			}
 
 			return "SUCCESS";
@@ -66,5 +78,4 @@ public class LambdaHandler implements RequestHandler<Map<String, Object>, String
 			throw new RuntimeException("Lambda 실행 실패", e);
 		}
 	}
-
 }
