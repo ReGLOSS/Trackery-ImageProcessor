@@ -30,6 +30,7 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
  */
 public class S3ActionService {
 	private static final Logger logger = LoggerFactory.getLogger(S3ActionService.class);
+	private static final String OUTPUT_EXTENSION = "." + AppConstants.OUTPUT_FORMAT.toLowerCase();
 	
 	private final S3Client s3Client;
 	
@@ -119,7 +120,7 @@ public class S3ActionService {
 	 * 원본 WebP 이미지를 업로드
 	 */
 	public void uploadOriginalWebP(String originalKey, byte[] webpBytes) throws IOException {
-		String destinationKey = "original/" + changeExtensionToWebP(originalKey);
+		String destinationKey = createDestinationKey(originalKey, "original", "-orig");
 		uploadImage(AppConstants.DESTINATION_BUCKET, destinationKey, webpBytes, "image/webp");
 	}
 
@@ -127,18 +128,40 @@ public class S3ActionService {
 	 * 썸네일 이미지를 업로드
 	 */
 	public void uploadThumbnail(String originalKey, byte[] thumbnailBytes) throws IOException {
-		String destinationKey = "thumbnail/" + changeExtensionToWebP(originalKey);
+		String destinationKey = createDestinationKey(originalKey, "thumbnail", "-thumbnail");
 		uploadImage(AppConstants.DESTINATION_BUCKET, destinationKey, thumbnailBytes, "image/webp");
 	}
 
+	/**
+	 * 대상 키 생성 (userId/type/filename-suffix.webp)
+	 * @param originalKey 원본 키
+	 * @param type 타입 (original 또는 thumbnail)
+	 * @param suffix 파일명 접미사 (-orig 또는 -thumbnail)
+	 * @return 변환된 키
+	 */
+	private String createDestinationKey(String originalKey, String type, String suffix) {
+		String[] pathParts = originalKey.split("/");
+		if (pathParts.length >= 3) {
+			String userId = pathParts[1];
+			String filename = pathParts[pathParts.length - 1];
+
+			int lastDotIndex = filename.lastIndexOf('.');
+			String filenameWithoutExt = lastDotIndex > 0 ? filename.substring(0, lastDotIndex) : filename;
+			
+			return userId + "/" + type + "/" + filenameWithoutExt + suffix + OUTPUT_EXTENSION;
+		}
+
+		return type + "/" + changeExtensionToWebP(originalKey);
+	}
+	
 	/**
 	 * 파일 확장자를 .webp로 변경
 	 */
 	private String changeExtensionToWebP(String key) {
 		int lastDotIndex = key.lastIndexOf('.');
 		if (lastDotIndex > 0) {
-			return key.substring(0, lastDotIndex) + ".webp";
+			return key.substring(0, lastDotIndex) + OUTPUT_EXTENSION;
 		}
-		return key + ".webp";
+		return key + OUTPUT_EXTENSION;
 	}
 }
