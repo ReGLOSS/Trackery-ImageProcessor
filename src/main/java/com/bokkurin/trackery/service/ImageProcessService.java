@@ -1,6 +1,7 @@
 package com.bokkurin.trackery.service;
 
 import java.awt.*;
+import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -12,6 +13,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.bokkurin.trackery.config.AppConstants;
+import com.drew.imaging.ImageMetadataReader;
+import com.drew.imaging.ImageProcessingException;
+import com.drew.metadata.Metadata;
+import com.drew.metadata.MetadataException;
+import com.drew.metadata.exif.ExifDirectoryBase;
+import com.drew.metadata.exif.ExifIFD0Directory;
 
 /**
  * packageName    : com.bokkurin.trackery.service
@@ -24,6 +31,7 @@ import com.bokkurin.trackery.config.AppConstants;
  * -----------------------------------------------------------
  * 25. 6. 26.		durururuk		최초 생성
  * 25. 6. 26.		durururuk		webp 변환 메서드 작성, 테스트용 샘플 이미지 추가
+ * 25. 7. 16.		durururuk		이미지 방향을 받아와서 맞게 수정하는 작업 추가
  */
 public class ImageProcessService {
 	private static final Logger logger = LoggerFactory.getLogger(ImageProcessService.class);
@@ -92,7 +100,7 @@ public class ImageProcessService {
 			throw new IOException("원본 이미지 불러오기 실패");
 		}
 
-		return originalImage;
+		return applyExifOrientation(originalImage, imageBytes);
 	}
 
 	/**
@@ -112,6 +120,121 @@ public class ImageProcessService {
 
 		logger.info("{} WebP 변환 완료", logContext);
 		return outputStream.toByteArray();
+	}
+
+	/**
+	 * EXIF 방향 정보를 적용하여 이미지를 올바른 방향으로 회전시키는 메서드
+	 * @param image 원본 BufferedImage
+	 * @param imageBytes 원본 이미지 바이트 배열 (EXIF 정보 읽기용)
+	 * @return 방향이 보정된 BufferedImage
+	 */
+	private BufferedImage applyExifOrientation(BufferedImage image, byte[] imageBytes) {
+		try {
+			Metadata metadata = ImageMetadataReader.readMetadata(new ByteArrayInputStream(imageBytes));
+			ExifIFD0Directory directory = metadata.getFirstDirectoryOfType(ExifIFD0Directory.class);
+
+			if (directory != null && directory.hasTagName(ExifDirectoryBase.TAG_ORIENTATION)) {
+				int orientation = directory.getInt(ExifDirectoryBase.TAG_ORIENTATION);
+				logger.info("EXIF 방향 정보 감지: {}", orientation);
+				return rotateImageByOrientation(image, orientation);
+			}
+		} catch (ImageProcessingException | IOException | MetadataException e) {
+			logger.warn("EXIF 방향 정보 처리 중 오류 발생: {}", e.getMessage());
+		}
+		return image;
+	}
+
+	/**
+	 * EXIF 방향 값에 따라 이미지를 회전시키는 메서드
+	 * @param image 원본 BufferedImage
+	 * @param orientation EXIF 방향 값 (1-8)
+	 * @return 회전된 BufferedImage
+	 */
+	private BufferedImage rotateImageByOrientation(BufferedImage image, int orientation) {
+		AffineTransform transform = new AffineTransform();
+		
+		switch (orientation) {
+			case 1:
+				// 정상 방향 (회전 없음)
+				return image;
+			case 2:
+				// 수평 반전
+				transform.scale(-1.0, 1.0);
+				transform.translate(-image.getWidth(), 0);
+				break;
+			case 3:
+				// 180도 회전
+				transform.translate(image.getWidth(), image.getHeight());
+				transform.rotate(Math.PI);
+				break;
+			case 4:
+				// 수직 반전
+				transform.scale(1.0, -1.0);
+				transform.translate(0, -image.getHeight());
+				break;
+			case 5:
+				// 90도 반시계방향 회전 + 수평 반전
+				transform.rotate(-Math.PI / 2);
+				transform.scale(-1.0, 1.0);
+				break;
+			case 6:
+				// 90도 시계방향 회전
+				transform.translate(image.getHeight(), 0);
+				transform.rotate(Math.PI / 2);
+				break;
+			case 7:
+				// 90도 시계방향 회전 + 수평 반전
+				transform.scale(-1.0, 1.0);
+				transform.translate(-image.getHeight(), 0);
+				transform.translate(0, image.getWidth());
+				transform.rotate(3 * Math.PI / 2);
+				break;
+			case 8:
+				// 90도 반시계방향 회전
+				transform.translate(0, image.getWidth());
+				transform.rotate(-Math.PI / 2);
+				break;
+			default:
+				// 알 수 없는 방향값
+				logger.warn("알 수 없는 EXIF 방향 값: {}", orientation);
+				return image;
+		}
+
+		return applyTransformation(image, transform, orientation);
+	}
+
+	/**
+	 * AffineTransform을 적용하여 이미지를 변환하는 메서드
+	 * @param image 원본 BufferedImage
+	 * @param transform 적용할 AffineTransform
+	 * @param orientation EXIF 방향 값 (로깅용)
+	 * @return 변환된 BufferedImage
+	 */
+	private BufferedImage applyTransformation(BufferedImage image, AffineTransform transform, int orientation) {
+		// 회전 후 이미지 크기 계산
+		int newWidth = image.getWidth();
+		int newHeight = image.getHeight();
+		
+		if (orientation == 6 || orientation == 8) {
+			// 90도 회전 시 가로세로 바뀜
+			newWidth = image.getHeight();
+			newHeight = image.getWidth();
+		}
+
+		BufferedImage rotatedImage = new BufferedImage(newWidth, newHeight, image.getType());
+		Graphics2D g2d = rotatedImage.createGraphics();
+		
+		// 고품질 렌더링 설정
+		g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+		g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+		g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		
+		g2d.setTransform(transform);
+		g2d.drawImage(image, 0, 0, null);
+		g2d.dispose();
+
+		logger.info("EXIF 방향 보정 완료: {} -> 정상방향", orientation);
+		return rotatedImage;
 	}
 
 }
